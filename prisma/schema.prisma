@@ -1,0 +1,199 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// prisma/schema.prisma
+datasource db {
+  provider  = "postgresql"
+  url  	    = env("DATABASE_URL")
+  // uncomment next line if you use Prisma <5.10
+  // directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  name        String?  
+  email       String   @unique
+  password    String
+  role        Role     @default(USER)
+  phone       String?
+  mfaEnabled  Boolean  @default(false)
+  mfaSecret   String?
+  otp         String?
+  otpExpiry   DateTime?
+  isVerified  Boolean  @default(false)
+  address      String?
+  country     String?  @default("INDIA")
+  timezone    String?  @default("Kolkata(GMT+5:30)")
+  dateOfBirth  DateTime?
+  lastIp       String?
+  profileCompleted    Boolean     @default(false)
+  failedLoginAttempts Int         @default(0)
+  loginAttempts       Int         @default(0)
+  lastLoginAt         DateTime?
+  passwordResetRequested Boolean  @default(false)
+  passwordChangedAt   DateTime?
+  balance     Float    @default(500.0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  assets      Asset[]
+  accounts    Account[] // Add this line
+  sentTransactions     Transaction[] @relation("SentTransactions")
+  receivedTransactions Transaction[] @relation("ReceivedTransactions")
+  investments Investment[]
+  loans       Loan[]
+  securityLogs SecurityLog[]
+  mfaTokens   MFAToken[]
+}
+
+model Asset {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  type        String   // e.g., "BTC", "ETH", "USD"
+  balance     Float    @default(500.0)
+  currency    String   @default("USD")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model Transaction {
+  id          Int               @id @default(autoincrement())
+  senderId    Int
+  sender      User              @relation("SentTransactions", fields: [senderId], references: [id])
+  receiverId  Int
+  receiver    User              @relation("ReceivedTransactions", fields: [receiverId], references: [id])
+  amount      Float
+  status      TransactionStatus @default(PENDING)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+enum InvestmentType {
+  STOCKS
+  BONDS
+  CRYPTO
+}
+
+model Investment {
+  id          Int             @id @default(autoincrement())
+  userId      Int
+  user        User            @relation(fields: [userId], references: [id])
+  amount      Float
+  type        InvestmentType
+  status      String          @default("ACTIVE") // "ACTIVE", "CLOSED"
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+enum LoanStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REPAID
+}
+
+model Loan {
+  id          Int         @id @default(autoincrement())
+  userId      Int
+  user        User        @relation(fields: [userId], references: [id])
+  amount      Float
+  interest    Float       @default(5.0) // Annual interest rate
+  status      LoanStatus  @default(PENDING)
+  dueDate     DateTime
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Account {
+  id            Int      @id @default(autoincrement())
+  accountNumber String   @unique
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  type          String   @default("SAVINGS")
+  balance       Float    @default(0.0)
+  currency      String   @default("USD")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([accountNumber]) // Add index for faster lookups
+}
+
+enum SecurityEventType {
+  SIGNUP_INITIATED
+  ACCOUNT_VERIFICATION
+  FAILED_OTP_VERIFICATION
+  FAILED_LOGIN_ATTEMPT
+  SUCCESSFUL_LOGIN
+  LOGIN_OTP_SENT
+  FAILED_LOGIN_OTP
+  PASSWORD_RESET
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
+  PROFILE_COMPLETED
+  PROFILE_UPDATE
+  MFA_ENABLED
+  MFA_DISABLED
+  ASSET_CREATED
+  ASSET_UPDATED
+  ASSET_DELETED
+  ASSET_TRANSFER
+  ACCOUNT_CREATED
+  ACCOUNT_UPDATED
+  ACCOUNT_DELETED
+  TRANSACTION_INITIATED
+  TRANSACTION_COMPLETED
+  TRANSACTION_FAILED
+  LOAN_APPLICATION
+  LOAN_APPROVED
+  LOAN_REJECTED
+  LOAN_REPAID
+  INVESTMENT_CREATED
+  INVESTMENT_UPDATED
+  INVESTMENT_CLOSED
+  SUSPICIOUS_ACTIVITY
+  NULL
+}
+
+// Update SecurityLog model
+model SecurityLog {
+  id          String    @id @default(uuid())
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id])
+  eventType   SecurityEventType  @default(NULL)
+  ipAddress   String?
+  userAgent   String?
+  details     Json?     // Changed to Json type for structured data
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model MFAToken {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  token       String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+}
